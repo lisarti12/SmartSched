@@ -1,5 +1,9 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+
+import StudentHome from "./home/StudentHome";
+import EmployerHome from "./home/EmployerHome";
+import AdminHome from "./home/AdminHome";
 
 export default function Home() {
     const navigate = useNavigate();
@@ -26,58 +30,14 @@ export default function Home() {
     };
 
     return (
-        <div className="home-container">
-            <h2>Welcome, {name}</h2>
-            <p>Your role: {role}</p>
+        <div>
+            <h2>SmartSched</h2>
 
-            {role === "Student" && <StudentHome />}
-            {role === "Employer" && <EmployerHome />}
-            {role === "Admin" && <AdminHome />}
+            {role === "Student" && <StudentHome name={name} />}
+            {role === "Employer" && <EmployerHome name={name} />}
+            {role === "Admin" && <AdminHome name={name} />}
 
             <button onClick={logout}>Logout</button>
-        </div>
-    );
-}
-
-
-function StudentHome() {
-    return (
-        <div className="panel">
-            <h3>Student Dashboard</h3>
-
-            <ul>
-                <li>My Calendar</li>
-                <li>Add Personal Event</li>
-                <li>View Deadlines</li>
-            </ul>
-        </div>
-    );
-}
-
-function EmployerHome() {
-    return (
-        <div className="panel">
-            <h3>Employer / Professor Dashboard</h3>
-
-            <ul>
-                <li>Create Group Calendar</li>
-                <li>Assign Tasks</li>
-                <li>View Team Availability</li>
-            </ul>
-        </div>
-    );
-}
-
-function AdminHome() {
-    return (
-        <div className="panel admin">
-            <h3>Administrator Panel</h3>
-
-            <ul>
-                <li>Manage Users</li>
-                <li>View All Calendars</li>
-                <li>System Settings</li>
-            </ul>
         </div>
     );
 }
