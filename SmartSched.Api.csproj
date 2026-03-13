@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="frontend\smartsched-ui\src\pages\AdminHomePage.js" />
+    <None Remove="frontend\smartsched-ui\src\pages\LoginPage.js" />
+    <None Remove="frontend\smartsched-ui\src\pages\StudentHomePage.js" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="frontend\smartsched-ui\src\pages\AdminHomePage.js" />
+    <Compile Include="frontend\smartsched-ui\src\pages\LoginPage.js" />
+    <Compile Include="frontend\smartsched-ui\src\pages\StudentHomePage.js" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.22" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.22" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.22">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.22" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.22">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+  </ItemGroup>
+
+	<ItemGroup>
+		<Compile Remove="frontend\**" />
+		<Content Remove="frontend\**" />
+		<EmbeddedResource Remove="frontend\**" />
+		<None Remove="frontend\**" />
+	</ItemGroup>
+
+</Project>

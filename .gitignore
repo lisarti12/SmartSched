@@ -1,0 +1,29 @@
+# Build folders
+bin/
+obj/
+build/
+dist/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Node
+node_modules/
+
+# Environment variables
+.env
+.env.local
+
+# Secrets
+secrets.json
