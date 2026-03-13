@@ -29,13 +29,16 @@ namespace SmartSched.Api.Controllers
             if (existingUser != null)
                 return BadRequest(new { message = "Email is already registered." });
 
+            bool requiresApproval = dto.Role == "Professor";
+
             var user = new ApplicationUser
             {
                 UserName = dto.Email,
                 Email = dto.Email,
                 FirstName = dto.FirstName,
                 LastName = dto.LastName,
-                EmailConfirmed = true
+                EmailConfirmed = true,
+                IsApproved = !requiresApproval
             };
 
             var result = await _userManager.CreateAsync(user, dto.Password);
@@ -45,10 +48,21 @@ namespace SmartSched.Api.Controllers
 
             await _userManager.AddToRoleAsync(user, dto.Role);
 
+            if (requiresApproval)
+            {
+                return Ok(new AuthRegisterResponseDto
+                {
+                    RequiresApproval = true,
+                    Message = "Professor registration submitted. Awaiting approval by system admin."
+                });
+            }
+
             var token = await _jwtService.CreateToken(user, _userManager);
 
-            return Ok(new AuthResponseDto
+            return Ok(new AuthRegisterResponseDto
             {
+                RequiresApproval = false,
+                Message = "Registration successful.",
                 Token = token,
                 Email = user.Email!,
                 FullName = $"{user.FirstName} {user.LastName}",
@@ -72,6 +86,14 @@ namespace SmartSched.Api.Controllers
 
             var roles = await _userManager.GetRolesAsync(user);
             var role = roles.FirstOrDefault() ?? "";
+
+            if (role == "Professor" && !user.IsApproved)
+            {
+                return Unauthorized(new
+                {
+                    message = "Your professor account is awaiting admin approval."
+                });
+            }
 
             var token = await _jwtService.CreateToken(user, _userManager);
 

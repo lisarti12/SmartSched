@@ -33,7 +33,8 @@ namespace SmartSched.Api.Data
                     Email = adminEmail,
                     FirstName = "Lisart",
                     LastName = "Mella",
-                    EmailConfirmed = true
+                    EmailConfirmed = true,
+                    IsApproved = true
                 };
 
                 var result = await userManager.CreateAsync(admin, "admin123");

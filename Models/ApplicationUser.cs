@@ -14,5 +14,7 @@ namespace SmartSched.Api.Models
         [Required]
         [MaxLength(50)]
         public string LastName { get; set; } = string.Empty;
+
+        public bool IsApproved { get; set; } = true;
     }
 }
