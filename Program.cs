@@ -52,7 +52,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:3004")
+        policy.WithOrigins("http://localhost:3005")
               .AllowAnyHeader()
               .AllowAnyMethod();
     });
@@ -71,6 +71,7 @@ app.UseCors("AllowFrontend");
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseStaticFiles();
 
 app.MapControllers();
 
@@ -80,6 +81,12 @@ using (var scope = app.Services.CreateScope())
     var db = services.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
     await DbSeeder.SeedAsync(services);
+}
+
+var uploadsPath = Path.Combine(builder.Environment.ContentRootPath, "Uploads");
+if (!Directory.Exists(uploadsPath))
+{
+    Directory.CreateDirectory(uploadsPath);
 }
 
 app.Run();
