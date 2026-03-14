@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SmartSched.Api.Data;
 
@@ -11,9 +12,11 @@ using SmartSched.Api.Data;
 namespace SmartSched.Api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260313222452_AddProfessorFeatures1")]
+    partial class AddProfessorFeatures1
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -414,44 +417,6 @@ namespace SmartSched.Api.Migrations
                     b.ToTable("CourseEnrollments");
                 });
 
-            modelBuilder.Entity("SmartSched.Api.Models.HolidayBlock", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("nvarchar(300)");
-
-                    b.Property<DateTime>("EndDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("StartDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("StudentId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(120)
-                        .HasColumnType("nvarchar(120)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("StudentId");
-
-                    b.ToTable("HolidayBlocks");
-                });
-
             modelBuilder.Entity("SmartSched.Api.Models.LectureItem", b =>
                 {
                     b.Property<int>("Id")
@@ -557,51 +522,6 @@ namespace SmartSched.Api.Migrations
                     b.ToTable("StudentNotifications");
                 });
 
-            modelBuilder.Entity("SmartSched.Api.Models.StudentTaskNotification", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("CourseClassId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("CourseContentItemId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsRead")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Message")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("nvarchar(300)");
-
-                    b.Property<string>("StudentId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CourseClassId");
-
-                    b.HasIndex("CourseContentItemId");
-
-                    b.HasIndex("StudentId");
-
-                    b.ToTable("StudentTaskNotifications");
-                });
-
             modelBuilder.Entity("SmartSched.Api.Models.SystemSetting", b =>
                 {
                     b.Property<int>("Id")
@@ -639,9 +559,6 @@ namespace SmartSched.Api.Migrations
                         .IsRequired()
                         .HasMaxLength(80)
                         .HasColumnType("nvarchar(80)");
-
-                    b.Property<int?>("CourseContentItemId")
-                        .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -681,8 +598,6 @@ namespace SmartSched.Api.Migrations
                         .HasColumnType("nvarchar(120)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("CourseContentItemId");
 
                     b.HasIndex("StudentId");
 
@@ -841,17 +756,6 @@ namespace SmartSched.Api.Migrations
                     b.Navigation("Student");
                 });
 
-            modelBuilder.Entity("SmartSched.Api.Models.HolidayBlock", b =>
-                {
-                    b.HasOne("SmartSched.Api.Models.ApplicationUser", "Student")
-                        .WithMany()
-                        .HasForeignKey("StudentId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.Navigation("Student");
-                });
-
             modelBuilder.Entity("SmartSched.Api.Models.LectureItem", b =>
                 {
                     b.HasOne("SmartSched.Api.Models.CourseClass", "CourseClass")
@@ -901,47 +805,13 @@ namespace SmartSched.Api.Migrations
                     b.Navigation("Student");
                 });
 
-            modelBuilder.Entity("SmartSched.Api.Models.StudentTaskNotification", b =>
-                {
-                    b.HasOne("SmartSched.Api.Models.CourseClass", "CourseClass")
-                        .WithMany()
-                        .HasForeignKey("CourseClassId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.HasOne("SmartSched.Api.Models.CourseContentItem", "CourseContentItem")
-                        .WithMany()
-                        .HasForeignKey("CourseContentItemId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.HasOne("SmartSched.Api.Models.ApplicationUser", "Student")
-                        .WithMany()
-                        .HasForeignKey("StudentId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
-                    b.Navigation("CourseClass");
-
-                    b.Navigation("CourseContentItem");
-
-                    b.Navigation("Student");
-                });
-
             modelBuilder.Entity("SmartSched.Api.Models.TaskItem", b =>
                 {
-                    b.HasOne("SmartSched.Api.Models.CourseContentItem", "CourseContentItem")
-                        .WithMany()
-                        .HasForeignKey("CourseContentItemId")
-                        .OnDelete(DeleteBehavior.NoAction);
-
                     b.HasOne("SmartSched.Api.Models.ApplicationUser", "Student")
                         .WithMany()
                         .HasForeignKey("StudentId")
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
-
-                    b.Navigation("CourseContentItem");
 
                     b.Navigation("Student");
                 });

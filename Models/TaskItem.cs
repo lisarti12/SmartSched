@@ -1,5 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations.Schema;
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace SmartSched.Api.Models
 {
@@ -31,9 +31,14 @@ namespace SmartSched.Api.Models
 
         [Required]
         [MaxLength(30)]
-        public string Status { get; set; } = "Pending"; // Pending, Scheduled, Completed
+        public string Status { get; set; } = "Pending";
 
         public bool IsProfessorAssigned { get; set; } = false;
+
+        public int? CourseContentItemId { get; set; }
+
+        [ForeignKey(nameof(CourseContentItemId))]
+        public CourseContentItem? CourseContentItem { get; set; }
 
         [Required]
         public string StudentId { get; set; } = string.Empty;
