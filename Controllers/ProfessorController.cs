@@ -32,41 +32,6 @@ namespace SmartSched.Api.Controllers
             _environment = environment;
         }
 
-        [HttpPost("announcements")]
-        public async Task<IActionResult> CreateAnnouncement(CreateAnnouncementDto dto)
-        {
-            if (!ModelState.IsValid)
-                return BadRequest(ModelState);
-
-            var professorId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-            var announcement = new Announcement
-            {
-                Title = dto.Title,
-                Message = dto.Message,
-                Type = dto.Type,
-                ProfessorId = professorId!
-            };
-
-            _context.Announcements.Add(announcement);
-            await _context.SaveChangesAsync();
-
-            var students = await _userManager.GetUsersInRoleAsync("Student");
-
-            var notifications = students.Select(student => new StudentNotification
-            {
-                StudentId = student.Id,
-                AnnouncementId = announcement.Id,
-                IsRead = false,
-                CreatedAt = DateTime.UtcNow
-            }).ToList();
-
-            _context.StudentNotifications.AddRange(notifications);
-            await _context.SaveChangesAsync();
-
-            return Ok(new { message = "Announcement created and notifications sent." });
-        }
-
         [HttpPost("assign-task")]
         public async Task<IActionResult> AssignTask(AssignTaskDto dto)
         {
@@ -114,20 +79,45 @@ namespace SmartSched.Api.Controllers
             if (contentItem == null)
                 return NotFound(new { message = "Content item not found." });
 
-            var matchingTasks = await _context.TaskItems
-                .Where(t =>
-                    t.Course == courseClass.Title &&
-                    t.Title == contentItem.Title &&
-                    t.Description == contentItem.Description &&
-                    t.IsProfessorAssigned)
+            // 1. Delete student task notifications linked to this course content
+            var relatedNotifications = await _context.StudentTaskNotifications
+                .Where(n => n.CourseContentItemId == contentId)
                 .ToListAsync();
 
-            if (matchingTasks.Any())
+            if (relatedNotifications.Any())
             {
-                _context.TaskItems.RemoveRange(matchingTasks);
+                _context.StudentTaskNotifications.RemoveRange(relatedNotifications);
             }
 
+            // 2. Find SmartSched tasks created from this content
+            var relatedTasks = await _context.TaskItems
+                .Where(t => t.CourseContentItemId == contentId)
+                .ToListAsync();
+
+            if (relatedTasks.Any())
+            {
+                var relatedTaskIds = relatedTasks.Select(t => t.Id).ToList();
+
+                // 3. Delete schedule suggestions linked to those tasks
+                var relatedSuggestions = await _context.ScheduleSuggestions
+                    .Where(s => relatedTaskIds.Contains(s.TaskItemId))
+                    .ToListAsync();
+
+                if (relatedSuggestions.Any())
+                {
+                    _context.ScheduleSuggestions.RemoveRange(relatedSuggestions);
+                }
+
+                // 4. Delete workload metrics only if you want to fully refresh later
+                // safer to leave them for now, because they can be regenerated later
+
+                // 5. Delete the tasks themselves
+                _context.TaskItems.RemoveRange(relatedTasks);
+            }
+
+            // 6. Finally delete the course content item
             _context.CourseContentItems.Remove(contentItem);
+
             await _context.SaveChangesAsync();
 
             return Ok(new { message = "Content item deleted successfully." });
@@ -446,24 +436,56 @@ namespace SmartSched.Api.Controllers
                 .Select(e => e.StudentId)
                 .ToListAsync();
 
-            var tasks = enrolledStudentIds.Select(studentId => new TaskItem
+            var notifications = enrolledStudentIds.Select(studentId => new StudentTaskNotification
             {
+                StudentId = studentId,
+                CourseClassId = classId,
+                CourseContentItemId = item.Id,
                 Title = dto.Title,
-                Description = dto.Description,
-                Course = courseClass.Title,
-                Deadline = dto.DueDate,
-                EstimatedHours = 1,
-                Priority = 3,
-                Difficulty = 3,
-                Status = "Pending",
-                IsProfessorAssigned = true,
-                StudentId = studentId
+                Message = $"{dto.Type} added in {courseClass.Title}",
+                IsRead = false,
+                CreatedAt = DateTime.UtcNow
             }).ToList();
 
-            _context.TaskItems.AddRange(tasks);
+            _context.StudentTaskNotifications.AddRange(notifications);
             await _context.SaveChangesAsync();
 
             return Ok(new { message = "Class content created successfully." });
+        }
+
+        [HttpPost("announcements")]
+        public async Task<IActionResult> CreateAnnouncement(CreateAnnouncementDto dto)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            var professorId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            var announcement = new Announcement
+            {
+                Title = dto.Title,
+                Message = dto.Message,
+                Type = dto.Type,
+                ProfessorId = professorId!
+            };
+
+            _context.Announcements.Add(announcement);
+            await _context.SaveChangesAsync();
+
+            var students = await _userManager.GetUsersInRoleAsync("Student");
+
+            var notifications = students.Select(student => new StudentNotification
+            {
+                StudentId = student.Id,
+                AnnouncementId = announcement.Id,
+                IsRead = false,
+                CreatedAt = DateTime.UtcNow
+            }).ToList();
+
+            _context.StudentNotifications.AddRange(notifications);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Announcement created and notifications sent." });
         }
 
         [HttpGet("classes/{classId}/available-students")]

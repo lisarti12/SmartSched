@@ -11,7 +11,7 @@ namespace SmartSched.Api.Data
         }
 
         public DbSet<Announcement> Announcements => Set<Announcement>();
-        public DbSet<StudentNotification> StudentNotifications => Set<StudentNotification>();
+        public DbSet<StudentTaskNotification> StudentTaskNotifications => Set<StudentTaskNotification>();
         public DbSet<TaskItem> TaskItems => Set<TaskItem>();
         public DbSet<AvailabilityRule> AvailabilityRules => Set<AvailabilityRule>();
         public DbSet<ScheduleSuggestion> ScheduleSuggestions => Set<ScheduleSuggestion>();
@@ -21,6 +21,8 @@ namespace SmartSched.Api.Data
         public DbSet<CourseEnrollment> CourseEnrollments => Set<CourseEnrollment>();
         public DbSet<CourseContentItem> CourseContentItems => Set<CourseContentItem>();
         public DbSet<LectureItem> LectureItems => Set<LectureItem>();
+        public DbSet<StudentNotification> StudentNotifications => Set<StudentNotification>();
+        public DbSet<HolidayBlock> HolidayBlocks => Set<HolidayBlock>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -32,16 +34,10 @@ namespace SmartSched.Api.Data
                 .HasForeignKey(a => a.ProfessorId)
                 .OnDelete(DeleteBehavior.NoAction);
 
-            builder.Entity<StudentNotification>()
+            builder.Entity<StudentTaskNotification>()
                 .HasOne(sn => sn.Student)
                 .WithMany()
                 .HasForeignKey(sn => sn.StudentId)
-                .OnDelete(DeleteBehavior.NoAction);
-
-            builder.Entity<StudentNotification>()
-                .HasOne(sn => sn.Announcement)
-                .WithMany()
-                .HasForeignKey(sn => sn.AnnouncementId)
                 .OnDelete(DeleteBehavior.NoAction);
 
             builder.Entity<TaskItem>()
@@ -100,6 +96,46 @@ namespace SmartSched.Api.Data
                 .HasOne(l => l.CourseClass)
                 .WithMany()
                 .HasForeignKey(l => l.CourseClassId)
+                .OnDelete(DeleteBehavior.NoAction);
+            builder.Entity<TaskItem>()
+                .HasOne(t => t.CourseContentItem)
+                .WithMany()
+                .HasForeignKey(t => t.CourseContentItemId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            builder.Entity<StudentTaskNotification>()
+                .HasOne(n => n.Student)
+                .WithMany()
+                .HasForeignKey(n => n.StudentId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            builder.Entity<StudentTaskNotification>()
+                .HasOne(n => n.CourseClass)
+                .WithMany()
+                .HasForeignKey(n => n.CourseClassId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            builder.Entity<StudentTaskNotification>()
+                .HasOne(n => n.CourseContentItem)
+                .WithMany()
+                .HasForeignKey(n => n.CourseContentItemId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            builder.Entity<HolidayBlock>()
+                .HasOne(h => h.Student)
+                .WithMany()
+                .HasForeignKey(h => h.StudentId)
+                .OnDelete(DeleteBehavior.NoAction);
+            builder.Entity<StudentNotification>()
+                .HasOne(sn => sn.Student)
+                .WithMany()
+                .HasForeignKey(sn => sn.StudentId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            builder.Entity<StudentNotification>()
+                .HasOne(sn => sn.Announcement)
+                .WithMany()
+                .HasForeignKey(sn => sn.AnnouncementId)
                 .OnDelete(DeleteBehavior.NoAction);
         }
     }

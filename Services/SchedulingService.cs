@@ -15,30 +15,57 @@ namespace SmartSched.Api.Services
 
         public async Task GenerateScheduleForStudentAsync(string studentId)
         {
-            var existingSuggestions = await _context.ScheduleSuggestions
+            // 1. Remove old generated suggestions
+            var oldSuggestions = await _context.ScheduleSuggestions
                 .Where(s => s.StudentId == studentId && s.Status == "Suggested")
                 .ToListAsync();
 
-            if (existingSuggestions.Any())
+            if (oldSuggestions.Any())
             {
-                _context.ScheduleSuggestions.RemoveRange(existingSuggestions);
+                _context.ScheduleSuggestions.RemoveRange(oldSuggestions);
                 await _context.SaveChangesAsync();
             }
 
+            // 2. Load all unfinished tasks for this student
             var tasks = await _context.TaskItems
                 .Where(t => t.StudentId == studentId && t.Status != "Completed")
                 .OrderBy(t => t.Deadline)
                 .ToListAsync();
 
+            if (!tasks.Any())
+                return;
+
+            // 3. Load availability rules
             var availabilityRules = await _context.AvailabilityRules
                 .Where(a => a.StudentId == studentId && a.IsAvailable)
                 .ToListAsync();
 
-            var settings = await _context.SystemSettings.FirstOrDefaultAsync();
+            // 4. If no availability exists, use default 9 AM - 11 PM every day
+            if (!availabilityRules.Any())
+            {
+                availabilityRules = new List<AvailabilityRule>
+        {
+            new AvailabilityRule { StudentId = studentId, DayOfWeek = "Monday",    StartTime = new TimeSpan(9, 0, 0), EndTime = new TimeSpan(23, 0, 0), MaxStudyHours = 8, IsAvailable = true },
+            new AvailabilityRule { StudentId = studentId, DayOfWeek = "Tuesday",   StartTime = new TimeSpan(9, 0, 0), EndTime = new TimeSpan(23, 0, 0), MaxStudyHours = 8, IsAvailable = true },
+            new AvailabilityRule { StudentId = studentId, DayOfWeek = "Wednesday", StartTime = new TimeSpan(9, 0, 0), EndTime = new TimeSpan(23, 0, 0), MaxStudyHours = 8, IsAvailable = true },
+            new AvailabilityRule { StudentId = studentId, DayOfWeek = "Thursday",  StartTime = new TimeSpan(9, 0, 0), EndTime = new TimeSpan(23, 0, 0), MaxStudyHours = 8, IsAvailable = true },
+            new AvailabilityRule { StudentId = studentId, DayOfWeek = "Friday",    StartTime = new TimeSpan(9, 0, 0), EndTime = new TimeSpan(23, 0, 0), MaxStudyHours = 8, IsAvailable = true },
+            new AvailabilityRule { StudentId = studentId, DayOfWeek = "Saturday",  StartTime = new TimeSpan(9, 0, 0), EndTime = new TimeSpan(23, 0, 0), MaxStudyHours = 8, IsAvailable = true },
+            new AvailabilityRule { StudentId = studentId, DayOfWeek = "Sunday",    StartTime = new TimeSpan(9, 0, 0), EndTime = new TimeSpan(23, 0, 0), MaxStudyHours = 8, IsAvailable = true }
+        };
+            }
 
-            if (settings == null || !tasks.Any() || !availabilityRules.Any())
+            // 5. Load holidays/unavailable date ranges
+            var holidays = await _context.HolidayBlocks
+                .Where(h => h.StudentId == studentId)
+                .ToListAsync();
+
+            // 6. Load system settings
+            var settings = await _context.SystemSettings.FirstOrDefaultAsync();
+            if (settings == null)
                 return;
 
+            // 7. Score and sort tasks
             var scoredTasks = tasks
                 .Select(t => new
                 {
@@ -49,50 +76,99 @@ namespace SmartSched.Api.Services
                 .ThenBy(x => x.Task.Deadline)
                 .ToList();
 
-            foreach (var item in scoredTasks)
+            // 8. Schedule each task
+            foreach (var scored in scoredTasks)
             {
-                var task = item.Task;
-                var remainingHours = task.EstimatedHours;
-                var currentDate = DateTime.Today;
+                var task = scored.Task;
+                int remainingHours = task.EstimatedHours;
+                DateTime currentDate = DateTime.Today;
 
                 while (remainingHours > 0 && currentDate.Date <= task.Deadline.Date)
                 {
-                    var dayName = currentDate.DayOfWeek.ToString();
+                    // Skip holidays
+                    bool isHoliday = holidays.Any(h =>
+                        currentDate.Date >= h.StartDate.Date &&
+                        currentDate.Date <= h.EndDate.Date);
 
-                    var rule = availabilityRules.FirstOrDefault(r => r.DayOfWeek == dayName);
+                    if (isHoliday)
+                    {
+                        currentDate = currentDate.AddDays(1);
+                        continue;
+                    }
+
+                    // Find availability rule for current day
+                    string dayName = currentDate.DayOfWeek.ToString();
+
+                    var rule = availabilityRules.FirstOrDefault(r => r.DayOfWeek == dayName && r.IsAvailable);
                     if (rule == null)
                     {
                         currentDate = currentDate.AddDays(1);
                         continue;
                     }
 
-                    var existingHoursForDay = await _context.ScheduleSuggestions
+                    // How many hours already scheduled that day?
+                    int existingHoursForDay = await _context.ScheduleSuggestions
                         .Where(s => s.StudentId == studentId && s.ScheduledDate.Date == currentDate.Date)
                         .SumAsync(s => (int?)s.AllocatedHours) ?? 0;
 
-                    var maxHoursForDay = rule.MaxStudyHours > 0
+                    // Daily max hours
+                    int maxHoursForDay = rule.MaxStudyHours > 0
                         ? rule.MaxStudyHours
                         : settings.DefaultMaxStudyHoursPerDay;
 
-                    var availableHoursForDay = maxHoursForDay - existingHoursForDay;
+                    int remainingCapacityForDay = maxHoursForDay - existingHoursForDay;
 
-                    if (availableHoursForDay <= 0)
+                    if (remainingCapacityForDay <= 0)
                     {
                         currentDate = currentDate.AddDays(1);
                         continue;
                     }
 
-                    var startHour = rule.StartTime.Hours;
-                    var startMinute = rule.StartTime.Minutes;
-                    var allocatedHours = Math.Min(remainingHours, availableHoursForDay);
+                    // Determine actual time window available that day
+                    TimeSpan dayStart = rule.StartTime;
+                    TimeSpan dayEnd = rule.EndTime;
+
+                    // If previous suggestions exist that day, push start after latest scheduled end time
+                    var latestSuggestionEnd = await _context.ScheduleSuggestions
+                        .Where(s => s.StudentId == studentId && s.ScheduledDate.Date == currentDate.Date)
+                        .OrderByDescending(s => s.EndTime)
+                        .Select(s => (TimeSpan?)s.EndTime)
+                        .FirstOrDefaultAsync();
+
+                    TimeSpan actualStart = latestSuggestionEnd ?? dayStart;
+
+                    // Hours available in the clock window
+                    double timeWindowHours = (dayEnd - actualStart).TotalHours;
+
+                    if (timeWindowHours <= 0)
+                    {
+                        currentDate = currentDate.AddDays(1);
+                        continue;
+                    }
+
+                    int availableByClock = (int)Math.Floor(timeWindowHours);
+                    if (availableByClock <= 0)
+                    {
+                        currentDate = currentDate.AddDays(1);
+                        continue;
+                    }
+
+                    // Final allocation = min(task left, daily cap left, clock time left)
+                    int allocatedHours = Math.Min(remainingHours, Math.Min(remainingCapacityForDay, availableByClock));
+
+                    if (allocatedHours <= 0)
+                    {
+                        currentDate = currentDate.AddDays(1);
+                        continue;
+                    }
 
                     var suggestion = new ScheduleSuggestion
                     {
                         StudentId = studentId,
                         TaskItemId = task.Id,
                         ScheduledDate = currentDate.Date,
-                        StartTime = new TimeSpan(startHour, startMinute, 0),
-                        EndTime = new TimeSpan(startHour + allocatedHours, startMinute, 0),
+                        StartTime = actualStart,
+                        EndTime = actualStart.Add(TimeSpan.FromHours(allocatedHours)),
                         AllocatedHours = allocatedHours,
                         Status = "Suggested",
                         CreatedAt = DateTime.UtcNow
@@ -104,10 +180,14 @@ namespace SmartSched.Api.Services
                     currentDate = currentDate.AddDays(1);
                 }
 
+                // 9. Update task status
                 task.Status = remainingHours == 0 ? "Scheduled" : "Pending";
             }
 
+            // 10. Save generated schedule
             await _context.SaveChangesAsync();
+
+            // 11. Recalculate workload metrics
             await GenerateWorkloadMetricsAsync(studentId);
         }
 

@@ -2,7 +2,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SmartSched.Api.Data;
-using SmartSched.Api.DTOs;
 using System.Security.Claims;
 
 namespace SmartSched.Api.Controllers
@@ -24,19 +23,18 @@ namespace SmartSched.Api.Controllers
         {
             var studentId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-            var notifications = await _context.StudentNotifications
-                .Include(n => n.Announcement)
+            var notifications = await _context.StudentTaskNotifications
                 .Where(n => n.StudentId == studentId)
                 .OrderByDescending(n => n.CreatedAt)
-                .Select(n => new NotificationDto
+                .Select(n => new
                 {
-                    NotificationId = n.Id,
-                    AnnouncementId = n.AnnouncementId,
-                    Title = n.Announcement!.Title,
-                    Message = n.Announcement.Message,
-                    Type = n.Announcement.Type,
-                    CreatedAt = n.CreatedAt,
-                    IsRead = n.IsRead
+                    n.Id,
+                    n.Title,
+                    n.Message,
+                    n.IsRead,
+                    n.CreatedAt,
+                    n.CourseClassId,
+                    n.CourseContentItemId
                 })
                 .ToListAsync();
 
@@ -48,7 +46,7 @@ namespace SmartSched.Api.Controllers
         {
             var studentId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-            var notification = await _context.StudentNotifications
+            var notification = await _context.StudentTaskNotifications
                 .FirstOrDefaultAsync(n => n.Id == id && n.StudentId == studentId);
 
             if (notification == null)

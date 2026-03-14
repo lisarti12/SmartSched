@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace SmartSched.Api.Models
 {
-    public class StudentNotification
+    public class HolidayBlock
     {
         public int Id { get; set; }
 
@@ -14,12 +14,17 @@ namespace SmartSched.Api.Models
         public ApplicationUser? Student { get; set; }
 
         [Required]
-        public int AnnouncementId { get; set; }
+        [MaxLength(120)]
+        public string Title { get; set; } = string.Empty;
 
-        [ForeignKey(nameof(AnnouncementId))]
-        public Announcement? Announcement { get; set; }
+        [MaxLength(300)]
+        public string Description { get; set; } = string.Empty;
 
-        public bool IsRead { get; set; } = false;
+        [Required]
+        public DateTime StartDate { get; set; }
+
+        [Required]
+        public DateTime EndDate { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }
