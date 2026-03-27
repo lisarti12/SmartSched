@@ -434,6 +434,9 @@ namespace SmartSched.Api.Controllers
         public async Task<IActionResult> GetCalendar([FromQuery] string view = "week", [FromQuery] DateTime? date = null)
         {
             var studentId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(studentId))
+                return Unauthorized();
+
             var baseDate = (date ?? DateTime.Today).Date;
 
             DateTime start;
@@ -445,78 +448,108 @@ namespace SmartSched.Api.Controllers
                     start = baseDate;
                     end = baseDate.AddDays(1);
                     break;
+
                 case "month":
                     start = new DateTime(baseDate.Year, baseDate.Month, 1);
                     end = start.AddMonths(1);
                     break;
+
                 default:
                     int diff = (7 + (baseDate.DayOfWeek - DayOfWeek.Monday)) % 7;
-                    start = baseDate.AddDays(-1 * diff);
+                    start = baseDate.AddDays(-diff);
                     end = start.AddDays(7);
                     break;
             }
 
-            var scheduledTasks = await _context.ScheduleSuggestions
-                .Include(s => s.TaskItem)
-                .Where(s => s.StudentId == studentId && s.ScheduledDate >= start && s.ScheduledDate < end)
-                .Select(s => new
+            // Personal/student tasks
+            var personalDeadlines = await _context.TaskItems
+                .Where(t => t.StudentId == studentId
+                            && t.Deadline >= start
+                            && t.Deadline < end
+                            && t.Status != "Completed")
+                .Select(t => new
                 {
-                    Type = "ScheduledTask",
-                    Title = s.TaskItem!.Title,
-                    Course = s.TaskItem.Course,
-                    Date = s.ScheduledDate,
-                    StartTime = (TimeSpan?)s.StartTime,
-                    EndTime = (TimeSpan?)s.EndTime,
-                    CourseClassId = _context.CourseClasses
-                        .Where(c => c.Title == s.TaskItem.Course)
-                        .Select(c => (int?)c.Id)
-                        .FirstOrDefault()
+                    type = "Deadline",
+                    title = t.Title,
+                    course = t.Course,
+                    date = t.Deadline,
+                    startTime = (TimeSpan?)t.Deadline.TimeOfDay,
+                    endTime = (TimeSpan?)null,
+                    source = t.IsProfessorAssigned ? "ProfessorTask" : "PersonalTask"
                 })
                 .ToListAsync();
 
-            var deadlines = await _context.TaskItems
-                .Where(t => t.StudentId == studentId && t.Deadline >= start && t.Deadline < end && t.Status != "Completed")
-                .Select(t => new
+            // Professor-created course deadlines for courses where the student is enrolled
+            var courseDeadlines = await _context.CourseEnrollments
+                .Where(e => e.StudentId == studentId)
+                .Join(
+                    _context.CourseContentItems,
+                    e => e.CourseClassId,
+                    cci => cci.CourseClassId,
+                    (e, cci) => new { e, cci }
+                )
+                .Where(x => x.cci.DueDate >= start && x.cci.DueDate < end)
+                .Select(x => new
                 {
-                    Type = "Deadline",
-                    Title = t.Title,
-                    Course = t.Course,
-                    Date = t.Deadline.Date,
-                    StartTime = (TimeSpan?)t.Deadline.TimeOfDay,
-                    EndTime = (TimeSpan?)null,
-                    CourseClassId = _context.CourseClasses
-                        .Where(c => c.Title == t.Course)
-                        .Select(c => (int?)c.Id)
-                        .FirstOrDefault()
+                    type = "Deadline",
+                    title = x.cci.Title,
+                    course = _context.CourseClasses
+                        .Where(c => c.Id == x.e.CourseClassId)
+                        .Select(c => c.Title)
+                        .FirstOrDefault(),
+                    date = x.cci.DueDate,
+                    startTime = (TimeSpan?)x.cci.DueDate.TimeOfDay,
+                    endTime = (TimeSpan?)null,
+                    source = "CourseContent"
+                })
+                .ToListAsync();
+
+            var scheduledTasks = await _context.ScheduleSuggestions
+                .Include(s => s.TaskItem)
+                .Where(s => s.StudentId == studentId
+                            && s.ScheduledDate >= start
+                            && s.ScheduledDate < end)
+                .Select(s => new
+                {
+                    type = "ScheduledTask",
+                    title = s.TaskItem!.Title,
+                    course = s.TaskItem.Course,
+                    date = s.ScheduledDate,
+                    startTime = (TimeSpan?)s.StartTime,
+                    endTime = (TimeSpan?)s.EndTime,
+                    source = "ScheduleSuggestion"
                 })
                 .ToListAsync();
 
             var holidays = await _context.HolidayBlocks
-                .Where(h => h.StudentId == studentId && h.StartDate < end && h.EndDate >= start)
+                .Where(h => h.StudentId == studentId
+                            && h.StartDate < end
+                            && h.EndDate >= start)
                 .Select(h => new
                 {
-                    Type = "Holiday",
-                    Title = h.Title,
-                    Course = "",
-                    Date = h.StartDate.Date,
-                    StartTime = (TimeSpan?)null,
-                    EndTime = (TimeSpan?)null,
-                    CourseClassId = (int?)null
+                    type = "Holiday",
+                    title = h.Title,
+                    course = "",
+                    date = h.StartDate,
+                    startTime = (TimeSpan?)null,
+                    endTime = (TimeSpan?)null,
+                    source = "Holiday"
                 })
                 .ToListAsync();
 
             var items = scheduledTasks.Cast<object>()
-                .Concat(deadlines)
+                .Concat(personalDeadlines)
+                .Concat(courseDeadlines)
                 .Concat(holidays)
-                .OrderBy(x => ((dynamic)x).Date)
+                .OrderBy(x => ((dynamic)x).date)
                 .ToList();
 
             return Ok(new
             {
-                View = view,
-                Start = start,
-                End = end,
-                Items = items
+                view,
+                start,
+                end,
+                items
             });
         }
     }

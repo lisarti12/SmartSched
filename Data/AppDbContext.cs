@@ -23,6 +23,7 @@ namespace SmartSched.Api.Data
         public DbSet<LectureItem> LectureItems => Set<LectureItem>();
         public DbSet<StudentNotification> StudentNotifications => Set<StudentNotification>();
         public DbSet<HolidayBlock> HolidayBlocks => Set<HolidayBlock>();
+        public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -137,6 +138,19 @@ namespace SmartSched.Api.Data
                 .WithMany()
                 .HasForeignKey(sn => sn.AnnouncementId)
                 .OnDelete(DeleteBehavior.NoAction);
+
+            builder.Entity<ChatMessage>()
+                .HasOne(c => c.Sender)
+                .WithMany()
+                .HasForeignKey(c => c.SenderId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            builder.Entity<ChatMessage>()
+                .HasOne(c => c.Receiver)
+                .WithMany()
+                .HasForeignKey(c => c.ReceiverId)
+                .OnDelete(DeleteBehavior.NoAction);
+
         }
     }
 }
