@@ -4,8 +4,6 @@ namespace SmartSched.Api.DTOs
 {
     public class UpdateSystemSettingDto
     {
-        [Range(1, 12)]
-        public int DefaultMaxStudyHoursPerDay { get; set; }
 
         [Range(0, 23)]
         public int DefaultStartHour { get; set; }

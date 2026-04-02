@@ -25,8 +25,10 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 .AddDefaultTokenProviders();
 
 builder.Services.AddScoped<SchedulingService>();
-
 builder.Services.AddScoped<JwtService>();
+
+// NEW
+builder.Services.AddHttpClient();
 
 builder.Services.AddAuthentication(options =>
 {

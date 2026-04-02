@@ -1,5 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations.Schema;
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace SmartSched.Api.Models
 {
@@ -13,9 +13,10 @@ namespace SmartSched.Api.Models
         [ForeignKey(nameof(StudentId))]
         public ApplicationUser? Student { get; set; }
 
-        [Required]
         [MaxLength(20)]
-        public string DayOfWeek { get; set; } = string.Empty; // Monday, Tuesday...
+        public string? DayOfWeek { get; set; }
+
+        public DateTime? AvailableDate { get; set; }
 
         [Required]
         public TimeSpan StartTime { get; set; }
@@ -23,9 +24,8 @@ namespace SmartSched.Api.Models
         [Required]
         public TimeSpan EndTime { get; set; }
 
-        [Range(1, 12)]
-        public int MaxStudyHours { get; set; } = 4;
-
         public bool IsAvailable { get; set; } = true;
+
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }
 }

@@ -69,6 +69,7 @@ namespace SmartSched.Api.Data
                 .WithMany()
                 .HasForeignKey(w => w.StudentId)
                 .OnDelete(DeleteBehavior.NoAction);
+
             builder.Entity<CourseClass>()
                 .HasOne(c => c.Professor)
                 .WithMany()
@@ -92,11 +93,13 @@ namespace SmartSched.Api.Data
                 .WithMany()
                 .HasForeignKey(ci => ci.CourseClassId)
                 .OnDelete(DeleteBehavior.NoAction);
+
             builder.Entity<LectureItem>()
                 .HasOne(l => l.CourseClass)
                 .WithMany()
                 .HasForeignKey(l => l.CourseClassId)
                 .OnDelete(DeleteBehavior.NoAction);
+
             builder.Entity<TaskItem>()
                 .HasOne(t => t.CourseContentItem)
                 .WithMany()
@@ -126,6 +129,7 @@ namespace SmartSched.Api.Data
                 .WithMany()
                 .HasForeignKey(h => h.StudentId)
                 .OnDelete(DeleteBehavior.NoAction);
+
             builder.Entity<StudentNotification>()
                 .HasOne(sn => sn.Student)
                 .WithMany()
@@ -137,7 +141,16 @@ namespace SmartSched.Api.Data
                 .WithMany()
                 .HasForeignKey(sn => sn.AnnouncementId)
                 .OnDelete(DeleteBehavior.NoAction);
+
+            // NEW: filtered unique index to avoid duplicate availability rows
+            builder.Entity<AvailabilityRule>()
+                .HasIndex(a => new { a.StudentId, a.AvailableDate, a.StartTime, a.EndTime })
+                .IsUnique()
+                .HasFilter("[AvailableDate] IS NOT NULL");
+
+            // Optional helpful index for holiday lookups
+            builder.Entity<HolidayBlock>()
+                .HasIndex(h => new { h.StudentId, h.StartDate, h.EndDate });
         }
     }
 }
-

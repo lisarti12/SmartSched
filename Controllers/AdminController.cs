@@ -234,7 +234,6 @@ namespace SmartSched.Api.Controllers
                 _context.SystemSettings.Add(settings);
             }
 
-            settings.DefaultMaxStudyHoursPerDay = dto.DefaultMaxStudyHoursPerDay;
             settings.DefaultStartHour = dto.DefaultStartHour;
             settings.DefaultEndHour = dto.DefaultEndHour;
             settings.DefaultBreakMinutes = dto.DefaultBreakMinutes;

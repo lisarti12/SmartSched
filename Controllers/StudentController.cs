@@ -6,6 +6,9 @@ using System.Security.Claims;
 using SmartSched.Api.Data;
 using SmartSched.Api.DTOs;
 using SmartSched.Api.Services;
+using System.Security.Claims;
+using System.Text.Json;
+using Microsoft.Extensions.Configuration;
 
 namespace SmartSched.Api.Controllers
 {
@@ -16,11 +19,19 @@ namespace SmartSched.Api.Controllers
     {
         private readonly AppDbContext _context;
         private readonly SchedulingService _schedulingService;
+        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IConfiguration _configuration;
 
-        public StudentController(AppDbContext context, SchedulingService schedulingService)
+        public StudentController(
+            AppDbContext context,
+            SchedulingService schedulingService,
+            IHttpClientFactory httpClientFactory,
+            IConfiguration configuration)
         {
             _context = context;
             _schedulingService = schedulingService;
+            _httpClientFactory = httpClientFactory;
+            _configuration = configuration;
         }
 
         [HttpPost("tasks")]
@@ -70,32 +81,55 @@ namespace SmartSched.Api.Controllers
                 return BadRequest(ModelState);
 
             var studentId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(studentId))
+                return Unauthorized();
 
-            var existing = await _context.AvailabilityRules
-                .FirstOrDefaultAsync(a => a.StudentId == studentId && a.DayOfWeek == dto.DayOfWeek);
+            var availableDate = dto.AvailableDate.Date;
 
-            if (existing != null)
+            if (dto.EndTime <= dto.StartTime)
+                return BadRequest(new { message = "End time must be after start time." });
+
+            if (availableDate < DateTime.Today)
+                return BadRequest(new { message = "Availability date cannot be in the past." });
+
+            var overlapsExisting = await _context.AvailabilityRules.AnyAsync(a =>
+                a.StudentId == studentId &&
+                a.AvailableDate.HasValue &&
+                a.AvailableDate.Value.Date == availableDate &&
+                a.IsAvailable &&
+                dto.StartTime < a.EndTime &&
+                dto.EndTime > a.StartTime);
+
+            if (overlapsExisting)
+                return BadRequest(new { message = "This availability overlaps an existing availability slot on the same date." });
+
+            var rule = new AvailabilityRule
             {
-                existing.StartTime = dto.StartTime;
-                existing.EndTime = dto.EndTime;
-                existing.MaxStudyHours = dto.MaxStudyHours;
-                existing.IsAvailable = true;
-            }
-            else
-            {
-                _context.AvailabilityRules.Add(new AvailabilityRule
-                {
-                    StudentId = studentId!,
-                    DayOfWeek = dto.DayOfWeek,
-                    StartTime = dto.StartTime,
-                    EndTime = dto.EndTime,
-                    MaxStudyHours = dto.MaxStudyHours,
-                    IsAvailable = true
-                });
-            }
+                StudentId = studentId,
+                DayOfWeek = availableDate.DayOfWeek.ToString(),
+                AvailableDate = availableDate,
+                StartTime = dto.StartTime,
+                EndTime = dto.EndTime,
+                
+                IsAvailable = true
+            };
 
+            _context.AvailabilityRules.Add(rule);
             await _context.SaveChangesAsync();
-            return Ok(new { message = "Availability saved." });
+
+            return Ok(new
+            {
+                message = "Availability saved.",
+                item = new
+                {
+                    rule.Id,
+                    rule.AvailableDate,
+                    rule.DayOfWeek,
+                    rule.StartTime,
+                    rule.EndTime,
+                   
+                }
+            });
         }
 
         [HttpGet("availability")]
@@ -103,12 +137,39 @@ namespace SmartSched.Api.Controllers
         {
             var studentId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-            var rules = await _context.AvailabilityRules
-                .Where(a => a.StudentId == studentId)
-                .OrderBy(a => a.DayOfWeek)
+            var availability = await _context.AvailabilityRules
+                .Where(a => a.StudentId == studentId && a.AvailableDate != null)
+                .OrderBy(a => a.AvailableDate)
+                .ThenBy(a => a.StartTime)
+                .Select(a => new
+                {
+                    a.Id,
+                    a.AvailableDate,
+                    DayOfWeek = a.DayOfWeek ?? "",
+                    a.StartTime,
+                    a.EndTime,
+                    a.IsAvailable
+                })
                 .ToListAsync();
 
-            return Ok(rules);
+            return Ok(availability);
+        }
+
+        [HttpDelete("availability/{id}")]
+        public async Task<IActionResult> DeleteAvailability(int id)
+        {
+            var studentId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            var slot = await _context.AvailabilityRules
+                .FirstOrDefaultAsync(a => a.Id == id && a.StudentId == studentId);
+
+            if (slot == null)
+                return NotFound(new { message = "Availability slot not found." });
+
+            _context.AvailabilityRules.Remove(slot);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Availability removed." });
         }
 
         [HttpPost("generate-schedule")]
@@ -380,24 +441,128 @@ namespace SmartSched.Api.Controllers
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            if (dto.EndDate < dto.StartDate)
+            if (dto.EndDate.Date < dto.StartDate.Date)
                 return BadRequest(new { message = "Holiday end date must be after start date." });
 
             var studentId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
+            var exists = await _context.HolidayBlocks.AnyAsync(h =>
+                h.StudentId == studentId &&
+                h.Title == dto.Title &&
+                h.StartDate.Date == dto.StartDate.Date &&
+                h.EndDate.Date == dto.EndDate.Date);
+
+            if (exists)
+                return BadRequest(new { message = "This holiday/unavailability already exists." });
+
             var holiday = new HolidayBlock
             {
                 StudentId = studentId!,
-                Title = dto.Title,
-                Description = dto.Description,
-                StartDate = dto.StartDate,
-                EndDate = dto.EndDate
+                Title = dto.Title.Trim(),
+                Description = dto.Description?.Trim() ?? string.Empty,
+                StartDate = dto.StartDate.Date,
+                EndDate = dto.EndDate.Date
             };
 
             _context.HolidayBlocks.Add(holiday);
             await _context.SaveChangesAsync();
 
             return Ok(new { message = "Holiday/unavailability added successfully." });
+        }
+
+        [HttpPost("holidays/sync/{year}")]
+        public async Task<IActionResult> SyncAcademicAndPublicHolidays(int year)
+        {
+            var studentId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(studentId))
+                return Unauthorized();
+
+            var toInsert = new List<HolidayBlock>();
+
+            // 1) Bulgaria public holidays from Nager.Date
+            var client = _httpClientFactory.CreateClient();
+            var url = $"https://date.nager.at/api/v3/PublicHolidays/{year}/BG";
+
+            List<NagerHolidayDto>? apiHolidays = null;
+            try
+            {
+                var response = await client.GetAsync(url);
+                if (response.IsSuccessStatusCode)
+                {
+                    var json = await response.Content.ReadAsStringAsync();
+                    apiHolidays = JsonSerializer.Deserialize<List<NagerHolidayDto>>(json, new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+                }
+            }
+            catch
+            {
+                apiHolidays = new List<NagerHolidayDto>();
+            }
+
+            if (apiHolidays != null)
+            {
+                foreach (var item in apiHolidays)
+                {
+                    var date = item.Date.Date;
+                    bool exists = await _context.HolidayBlocks.AnyAsync(h =>
+                        h.StudentId == studentId &&
+                        h.Title == item.LocalName &&
+                        h.StartDate.Date == date &&
+                        h.EndDate.Date == date);
+
+                    if (!exists)
+                    {
+                        toInsert.Add(new HolidayBlock
+                        {
+                            StudentId = studentId,
+                            Title = item.LocalName,
+                            Description = $"Public holiday ({item.Name})",
+                            StartDate = date,
+                            EndDate = date
+                        });
+                    }
+                }
+            }
+
+            // 2) Optional manual academic breaks from appsettings.json
+            var manualBreaks = _configuration
+                .GetSection("AcademicCalendar:ManualNoClassDays")
+                .Get<List<ManualNoClassDayDto>>() ?? new List<ManualNoClassDayDto>();
+
+            foreach (var item in manualBreaks.Where(x => x.StartDate.Year == year || x.EndDate.Year == year))
+            {
+                bool exists = await _context.HolidayBlocks.AnyAsync(h =>
+                    h.StudentId == studentId &&
+                    h.Title == item.Title &&
+                    h.StartDate.Date == item.StartDate.Date &&
+                    h.EndDate.Date == item.EndDate.Date);
+
+                if (!exists)
+                {
+                    toInsert.Add(new HolidayBlock
+                    {
+                        StudentId = studentId,
+                        Title = item.Title,
+                        Description = item.Description ?? "Academic no-class day",
+                        StartDate = item.StartDate.Date,
+                        EndDate = item.EndDate.Date
+                    });
+                }
+            }
+
+            if (toInsert.Any())
+            {
+                _context.HolidayBlocks.AddRange(toInsert);
+                await _context.SaveChangesAsync();
+            }
+
+            return Ok(new
+            {
+                message = "Holiday sync completed.",
+                added = toInsert.Count
+            });
         }
 
         [HttpGet("holidays")]
@@ -463,11 +628,9 @@ namespace SmartSched.Api.Controllers
                 {
                     Type = "ScheduledTask",
                     Title = s.TaskItem!.Title,
-                    Course = s.TaskItem.Course,
-                    Date = s.ScheduledDate,
-                    StartTime = (TimeSpan?)s.StartTime,
-                    EndTime = (TimeSpan?)s.EndTime,
-                    CourseClassId = _context.CourseClasses
+                    CourseName = s.TaskItem.Course,
+                    Date = s.ScheduledDate.Date.Add(s.StartTime),
+                    CourseId = _context.CourseClasses
                         .Where(c => c.Title == s.TaskItem.Course)
                         .Select(c => (int?)c.Id)
                         .FirstOrDefault()
@@ -480,11 +643,9 @@ namespace SmartSched.Api.Controllers
                 {
                     Type = "Deadline",
                     Title = t.Title,
-                    Course = t.Course,
-                    Date = t.Deadline.Date,
-                    StartTime = (TimeSpan?)t.Deadline.TimeOfDay,
-                    EndTime = (TimeSpan?)null,
-                    CourseClassId = _context.CourseClasses
+                    CourseName = t.Course,
+                    Date = t.Deadline,
+                    CourseId = _context.CourseClasses
                         .Where(c => c.Title == t.Course)
                         .Select(c => (int?)c.Id)
                         .FirstOrDefault()
@@ -497,17 +658,33 @@ namespace SmartSched.Api.Controllers
                 {
                     Type = "Holiday",
                     Title = h.Title,
-                    Course = "",
+                    CourseName = "",
                     Date = h.StartDate.Date,
-                    StartTime = (TimeSpan?)null,
-                    EndTime = (TimeSpan?)null,
-                    CourseClassId = (int?)null
+                    CourseId = (int?)null
+                })
+                .ToListAsync();
+
+            var availability = await _context.AvailabilityRules
+                .Where(a =>
+                    a.StudentId == studentId &&
+                    a.AvailableDate != null &&
+                    a.AvailableDate.Value >= start &&
+                    a.AvailableDate.Value < end &&
+                    a.IsAvailable)
+                .Select(a => new
+                {
+                    Type = "Availability",
+                    Title = $"Available ({a.StartTime:hh\\:mm} - {a.EndTime:hh\\:mm})",
+                    CourseName = "",
+                    Date = a.AvailableDate!.Value.Date.Add(a.StartTime),
+                    CourseId = (int?)null
                 })
                 .ToListAsync();
 
             var items = scheduledTasks.Cast<object>()
                 .Concat(deadlines)
                 .Concat(holidays)
+                .Concat(availability)
                 .OrderBy(x => ((dynamic)x).Date)
                 .ToList();
 
@@ -518,6 +695,21 @@ namespace SmartSched.Api.Controllers
                 End = end,
                 Items = items
             });
+        }
+
+        private sealed class NagerHolidayDto
+        {
+            public DateTime Date { get; set; }
+            public string LocalName { get; set; } = string.Empty;
+            public string Name { get; set; } = string.Empty;
+        }
+
+        private sealed class ManualNoClassDayDto
+        {
+            public string Title { get; set; } = string.Empty;
+            public string? Description { get; set; }
+            public DateTime StartDate { get; set; }
+            public DateTime EndDate { get; set; }
         }
     }
 }

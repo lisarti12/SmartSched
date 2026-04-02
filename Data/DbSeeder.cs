@@ -49,7 +49,6 @@ namespace SmartSched.Api.Data
             {
                 context.SystemSettings.Add(new SystemSetting
                 {
-                    DefaultMaxStudyHoursPerDay = 4,
                     DefaultStartHour = 16,
                     DefaultEndHour = 22,
                     DefaultBreakMinutes = 15
