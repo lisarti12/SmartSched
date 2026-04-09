@@ -1,0 +1,11 @@
+A permutation is an arrangement of elements in a specific order.
+
+If we have n distinct elements, the total number of permutations is:
+
+n!
+
+Example:
+For {A, B, C} →
+ABC, ACB, BAC, BCA, CAB, CBA (3! = 6)
+
+To generate permutations, we systematically produce all possible orderings of the elements.
