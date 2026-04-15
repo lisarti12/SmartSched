@@ -23,7 +23,8 @@ namespace SmartSched.Api.Data
         public DbSet<LectureItem> LectureItems => Set<LectureItem>();
         public DbSet<StudentNotification> StudentNotifications => Set<StudentNotification>();
         public DbSet<HolidayBlock> HolidayBlocks => Set<HolidayBlock>();
-        public DbSet<SmartSchedRunLog> SmartSchedRunLogs => Set<SmartSchedRunLog>();    
+        public DbSet<SmartSchedRunLog> SmartSchedRunLogs => Set<SmartSchedRunLog>();
+        public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -152,6 +153,24 @@ namespace SmartSched.Api.Data
             // Optional helpful index for holiday lookups
             builder.Entity<HolidayBlock>()
                 .HasIndex(h => new { h.StudentId, h.StartDate, h.EndDate });
+
+            builder.Entity<ChatMessage>()
+                .HasOne(m => m.Sender)
+                .WithMany()
+                .HasForeignKey(m => m.SenderId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            builder.Entity<ChatMessage>()
+                .HasOne(m => m.Receiver)
+                .WithMany()
+                .HasForeignKey(m => m.ReceiverId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            builder.Entity<ChatMessage>()
+                .HasIndex(m => new { m.ReceiverId, m.IsRead });
+
+            builder.Entity<ChatMessage>()
+                .HasIndex(m => new { m.SenderId, m.ReceiverId, m.SentAt });
         }
     }
 }

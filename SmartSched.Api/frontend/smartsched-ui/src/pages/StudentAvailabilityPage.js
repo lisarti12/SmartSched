@@ -86,8 +86,8 @@ export default function StudentAvailabilityPage() {
 
             const response = await api.post("/student/availability", {
                 availableDate: availabilityForm.availableDate,
-                startTime: availabilityForm.startTime,
-                endTime: availabilityForm.endTime
+                startTime: `${availabilityForm.startTime}:00`,
+                endTime: `${availabilityForm.endTime}:00`
             });
 
             setMessage(response.data?.message || "Availability saved successfully.");

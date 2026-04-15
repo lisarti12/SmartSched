@@ -75,7 +75,7 @@ namespace SmartSched.Api.Controllers
         }
 
         [HttpPost("availability")]
-        public async Task<IActionResult> SaveAvailability(CreateAvailabilityDto dto)
+        public async Task<IActionResult> SaveAvailability([FromBody] CreateAvailabilityDto dto)
         {
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
@@ -110,7 +110,6 @@ namespace SmartSched.Api.Controllers
                 AvailableDate = availableDate,
                 StartTime = dto.StartTime,
                 EndTime = dto.EndTime,
-                
                 IsAvailable = true
             };
 
@@ -126,8 +125,7 @@ namespace SmartSched.Api.Controllers
                     rule.AvailableDate,
                     rule.DayOfWeek,
                     rule.StartTime,
-                    rule.EndTime,
-                   
+                    rule.EndTime
                 }
             });
         }
@@ -630,6 +628,8 @@ namespace SmartSched.Api.Controllers
                     Title = s.TaskItem!.Title,
                     CourseName = s.TaskItem.Course,
                     Date = s.ScheduledDate.Date.Add(s.StartTime),
+                    StartTime = s.StartTime,
+                    EndTime = s.EndTime,
                     CourseId = _context.CourseClasses
                         .Where(c => c.Title == s.TaskItem.Course)
                         .Select(c => (int?)c.Id)
@@ -664,27 +664,10 @@ namespace SmartSched.Api.Controllers
                 })
                 .ToListAsync();
 
-            var availability = await _context.AvailabilityRules
-                .Where(a =>
-                    a.StudentId == studentId &&
-                    a.AvailableDate != null &&
-                    a.AvailableDate.Value >= start &&
-                    a.AvailableDate.Value < end &&
-                    a.IsAvailable)
-                .Select(a => new
-                {
-                    Type = "Availability",
-                    Title = $"Available ({a.StartTime:hh\\:mm} - {a.EndTime:hh\\:mm})",
-                    CourseName = "",
-                    Date = a.AvailableDate!.Value.Date.Add(a.StartTime),
-                    CourseId = (int?)null
-                })
-                .ToListAsync();
 
             var items = scheduledTasks.Cast<object>()
                 .Concat(deadlines)
                 .Concat(holidays)
-                .Concat(availability)
                 .OrderBy(x => ((dynamic)x).Date)
                 .ToList();
 

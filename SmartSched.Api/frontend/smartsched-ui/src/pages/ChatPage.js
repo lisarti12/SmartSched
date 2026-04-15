@@ -1,8 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import axios from "axios";
+import api from "../api/api";
 import { useAuth } from "../context/AuthContext";
-
-const API_BASE = "https://localhost:7189/api";
 
 function ChatPage() {
     const { user } = useAuth();
@@ -11,8 +9,8 @@ function ChatPage() {
     const [selectedUser, setSelectedUser] = useState(null);
     const [messages, setMessages] = useState([]);
     const [messageText, setMessageText] = useState("");
+    const [errorMessage, setErrorMessage] = useState("");
 
-    const token = localStorage.getItem("token");
     const messagesEndRef = useRef(null);
 
     useEffect(function () {
@@ -51,22 +49,19 @@ function ChatPage() {
 
     async function loadContacts() {
         try {
-            const res = await axios.get(`${API_BASE}/chat/contacts`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-
+            setErrorMessage("");
+            const res = await api.get("/chat/contacts");
             setContacts(res.data || []);
         } catch (err) {
             console.error("Failed to load contacts:", err);
+            setErrorMessage(err?.response?.data?.message || "Failed to load contacts.");
         }
     }
 
     async function openConversation(userToOpen, refreshContacts = true) {
         try {
-            const res = await axios.get(`${API_BASE}/chat/conversation/${userToOpen.id}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-
+            setErrorMessage("");
+            const res = await api.get(`/chat/conversation/${userToOpen.id}`);
             setSelectedUser(userToOpen);
             setMessages(res.data || []);
 
@@ -75,6 +70,7 @@ function ChatPage() {
             }
         } catch (err) {
             console.error("Failed to load conversation:", err);
+            setErrorMessage(err?.response?.data?.message || "Failed to load conversation.");
         }
     }
 
@@ -82,22 +78,18 @@ function ChatPage() {
         if (!selectedUser || !messageText.trim()) return;
 
         try {
-            await axios.post(
-                `${API_BASE}/chat/send`,
-                {
-                    receiverId: selectedUser.id,
-                    messageText: messageText.trim()
-                },
-                {
-                    headers: { Authorization: `Bearer ${token}` }
-                }
-            );
+            setErrorMessage("");
+
+            await api.post("/chat/send", {
+                receiverId: selectedUser.id,
+                messageText: messageText.trim()
+            });
 
             setMessageText("");
             await openConversation(selectedUser);
         } catch (err) {
             console.error("Failed to send message:", err);
-            alert(err?.response?.data?.message || "Failed to send message");
+            setErrorMessage(err?.response?.data?.message || "Failed to send message.");
         }
     }
 
@@ -109,6 +101,21 @@ function ChatPage() {
 
     return (
         <div style={{ padding: "20px", height: "calc(100vh - 40px)", boxSizing: "border-box" }}>
+            {errorMessage && (
+                <div
+                    style={{
+                        marginBottom: "12px",
+                        padding: "10px 12px",
+                        borderRadius: "10px",
+                        background: "#fef2f2",
+                        color: "#b91c1c",
+                        border: "1px solid #fecaca"
+                    }}
+                >
+                    {errorMessage}
+                </div>
+            )}
+
             <div
                 style={{
                     display: "flex",

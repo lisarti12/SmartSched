@@ -62,22 +62,43 @@ function isSameDay(a, b) {
     );
 }
 
-function getDisplayTime(dateValue) {
-    if (!dateValue) return "";
-    const d = new Date(dateValue);
+function getDisplayTime(dateValue, startTime, endTime) {
+    function formatTime(value) {
+        if (!value) return "";
 
-    if (
-        d.getHours() === 0 &&
-        d.getMinutes() === 0 &&
-        d.getSeconds() === 0
-    ) {
+        if (typeof value === "string") {
+            if (/^\d{2}:\d{2}(:\d{2})?$/.test(value)) {
+                const parts = value.split(":");
+                return `${parts[0]}:${parts[1]}`;
+            }
+
+            const parsed = new Date(value);
+            if (!isNaN(parsed.getTime())) {
+                return parsed.toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit"
+                });
+            }
+        }
+
+        if (value instanceof Date && !isNaN(value.getTime())) {
+            return value.toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit"
+            });
+        }
+
         return "";
     }
 
-    return d.toLocaleTimeString("en-US", {
-        hour: "2-digit",
-        minute: "2-digit",
-    });
+    const formattedStart = formatTime(startTime);
+    const formattedEnd = formatTime(endTime);
+
+    if (formattedStart && formattedEnd) {
+        return `${formattedStart} - ${formattedEnd}`;
+    }
+
+    return formatTime(dateValue);
 }
 
 function StudentCalendarPage() {
@@ -154,6 +175,17 @@ function StudentCalendarPage() {
     function normalizeCalendarItems(rawItems, studentCourses) {
         const normalized = rawItems
             .map(function (item, index) {
+                const type =
+                    item.type ||
+                    item.itemType ||
+                    item.category ||
+                    (item.isDeadline ? "Deadline" : null) ||
+                    "Item";
+
+                if (String(type).toLowerCase() === "availability") {
+                    return null;
+                }
+
                 const rawDate =
                     item.date ||
                     item.dueDate ||
@@ -170,46 +202,65 @@ function StudentCalendarPage() {
 
                 const matchedCourse =
                     studentCourses.find(function (course) {
-                        return (
-                            String(course.id) === String(item.courseId) ||
-                            String(course.id) === String(item.classId) ||
-                            String(course.courseId) === String(item.courseId) ||
-                            String(course.classId) === String(item.classId) ||
-                            (course.title &&
-                                item.courseName &&
-                                course.title.trim().toLowerCase() === item.courseName.trim().toLowerCase()) ||
-                            (course.name &&
-                                item.courseName &&
-                                course.name.trim().toLowerCase() === item.courseName.trim().toLowerCase())
-                        );
+                        const coursePrimaryId =
+                            course.courseClassId ??
+                            course.id ??
+                            course.courseId ??
+                            course.classId ??
+                            null;
+
+                        const itemPrimaryId =
+                            item.courseId ??
+                            item.classId ??
+                            null;
+
+                        if (
+                            coursePrimaryId !== null &&
+                            itemPrimaryId !== null &&
+                            String(coursePrimaryId) === String(itemPrimaryId)
+                        ) {
+                            return true;
+                        }
+
+                        if (
+                            course.title &&
+                            item.courseName &&
+                            course.title.trim().toLowerCase() === item.courseName.trim().toLowerCase()
+                        ) {
+                            return true;
+                        }
+
+                        if (
+                            course.name &&
+                            item.courseName &&
+                            course.name.trim().toLowerCase() === item.courseName.trim().toLowerCase()
+                        ) {
+                            return true;
+                        }
+
+                        return false;
                     }) || null;
 
                 const courseId =
-                    item.courseId ||
-                    item.classId ||
-                    item.course?.id ||
-                    item.class?.id ||
-                    matchedCourse?.id ||
-                    matchedCourse?.courseId ||
-                    matchedCourse?.classId ||
+                    item.courseId ??
+                    item.classId ??
+                    item.course?.id ??
+                    item.class?.id ??
+                    matchedCourse?.courseClassId ??
+                    matchedCourse?.id ??
+                    matchedCourse?.courseId ??
+                    matchedCourse?.classId ??
                     null;
 
                 const courseName =
-                    item.courseName ||
-                    item.className ||
-                    item.courseTitle ||
-                    item.course?.title ||
-                    item.class?.title ||
-                    matchedCourse?.title ||
-                    matchedCourse?.name ||
+                    item.courseName ??
+                    item.className ??
+                    item.courseTitle ??
+                    item.course?.title ??
+                    item.class?.title ??
+                    matchedCourse?.title ??
+                    matchedCourse?.name ??
                     "";
-
-                const type =
-                    item.type ||
-                    item.itemType ||
-                    item.category ||
-                    (item.isDeadline ? "Deadline" : null) ||
-                    "Item";
 
                 const title =
                     item.title ||
@@ -400,7 +451,7 @@ function StudentCalendarPage() {
                 <div style={{ opacity: 0.8 }}>{item.courseName}</div>
                 <div style={{ opacity: 0.7 }}>
                     {item.type}
-                    {item.timeText ? ` • ${item.timeText}` : ""}
+                    {item.timeText ? ` - ${item.timeText}` : ""}
                 </div>
                 {clickable && courseUrl ? (
                     <div
