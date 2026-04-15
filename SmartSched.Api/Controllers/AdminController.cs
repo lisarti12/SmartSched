@@ -75,6 +75,12 @@ namespace SmartSched.Api.Controllers
 
             var totalSmartSchedRuns = await _context.SmartSchedRunLogs.CountAsync();
 
+            var distinctSmartSchedStudents = await _context.SmartSchedRunLogs
+                .Where(x => !string.IsNullOrWhiteSpace(x.StudentId))
+                .Select(x => x.StudentId)
+                .Distinct()
+                .CountAsync();
+
             return Ok(new
             {
                 totalUsers = totalAdmins + totalStudents + totalProfessors,
@@ -82,7 +88,8 @@ namespace SmartSched.Api.Controllers
                 totalStudents,
                 totalProfessors,
                 totalPendingProfessors,
-                totalSmartSchedRuns
+                totalSmartSchedRuns,
+                distinctSmartSchedStudents
             });
         }
 

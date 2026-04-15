@@ -138,6 +138,10 @@ export default function AdminHomePage() {
                         <h4>SmartSched Uses</h4>
                         <p>{kpis.totalSmartSchedRuns}</p>
                     </div>
+                    <div className="kpi-card">
+                        <h4>Students Using SmartSched</h4>
+                        <p>{kpis.distinctSmartSchedStudents ?? 0}</p>
+                    </div>
                 </div>
             )}
 
